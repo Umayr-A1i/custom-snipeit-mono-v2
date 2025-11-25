@@ -1,0 +1,15 @@
+# Force bash scripts to use LF
+*.sh text eol=lf
+
+# Force Dockerfiles to use LF
+Dockerfile text eol=lf
+
+# Force Terraform files to use LF
+*.tf text eol=lf
+
+# Force YAML (GitHub Actions, Docker Compose) to use LF
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Python code should be LF
+*.py text eol=lf

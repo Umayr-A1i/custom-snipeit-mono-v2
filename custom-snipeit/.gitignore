@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.venv
+venv/
+env/
+
+# Node / Chrome extension
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform local vars
+infra/terraform.tfvars
+
+# Docker logs
+*.log
+
+# VS Code
+.vscode/
+
+# Environment files (real secrets)
+*.env
+*.env.*
+!*.env.snipeit.example
+!*.env.flask.example
+
+# OS
+.DS_Store
+Thumbs.db
