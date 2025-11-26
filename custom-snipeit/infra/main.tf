@@ -2,10 +2,12 @@
 # DATA SOURCES
 ########################################
 
+# Default VPC
 data "aws_vpc" "default" {
   default = true
 }
 
+# All subnets in the default VPC
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -13,14 +15,21 @@ data "aws_subnets" "default" {
   }
 }
 
+# Reliable, region-compatible Ubuntu 22.04 AMI lookup
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"] # Canonical
 }
 
 ########################################
@@ -87,6 +96,7 @@ resource "aws_iam_role" "snipeit_ec2_role" {
   }
 }
 
+# Attach AWS managed policies for SSM and ECR pull
 resource "aws_iam_role_policy_attachment" "ssm_managed" {
   role       = aws_iam_role.snipeit_ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -97,6 +107,7 @@ resource "aws_iam_role_policy_attachment" "ecr_read" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+# Instance profile for EC2
 resource "aws_iam_instance_profile" "snipeit_instance_profile" {
   name = "SnipeitInstanceProfile"
   role = aws_iam_role.snipeit_ec2_role.name
