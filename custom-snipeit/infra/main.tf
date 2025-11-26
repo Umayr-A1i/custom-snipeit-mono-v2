@@ -15,7 +15,8 @@ data "aws_subnets" "default" {
 
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical Ubuntu
+  owners      = ["099720109477"] # Canonical
+
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-22.04-amd64-server-*"]
@@ -66,31 +67,26 @@ resource "aws_security_group" "snipeit_sg" {
 resource "aws_iam_role" "snipeit_ec2_role" {
   name = "SnipeitEc2Role"
 
-  # EC2 Trust Relationship
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect    = "Allow"
-      Action    = "sts:AssumeRole"
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
       Principal = {
         Service = "ec2.amazonaws.com"
       }
     }]
   })
 
-  # Prevent Terraform from modifying the imported role
   lifecycle {
     ignore_changes = [
       description,
       tags,
-      assume_role_policy,
-      inline_policies,
-      managed_policy_arns,
+      assume_role_policy
     ]
   }
 }
 
-# Attach AWS Managed Policies for EC2 + SSM + ECR
 resource "aws_iam_role_policy_attachment" "ssm_managed" {
   role       = aws_iam_role.snipeit_ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
