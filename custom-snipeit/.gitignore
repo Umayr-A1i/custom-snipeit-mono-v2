@@ -1,3 +1,16 @@
+# Ignore all environment files by default
+.env
+*.env
+*.env.*
+
+# Allow only the EXAMPLE files
+!.env.snipeit.example
+!.env.flask.example
+
+# Do NOT allow the REAL env files
+.env.snipeit
+.env.flask
+
 # Python
 __pycache__/
 *.py[cod]
@@ -33,17 +46,6 @@ infra/terraform.tfvars
 # VS Code
 .vscode/
 
-# Ignore generic env files
-.env
-
-# DO NOT ignore the deployment env files
-!.env.snipeit
-!.env.flask
-
-# Allow examples (these are already fine)
-!.env.snipeit.example
-!.env.flask.example
-
-# OS
+# OS junk
 .DS_Store
 Thumbs.db
