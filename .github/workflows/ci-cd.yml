@@ -8,7 +8,7 @@ on:
 jobs:
 
   ###############################################################
-  # 1. TERRAFORM (BUILD INFRASTRUCTURE)
+  # 1. TERRAFORM (INFRA DEPLOYMENT)
   ###############################################################
   terraform:
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
 
 
   ###############################################################
-  # 2. BUILD & PUSH DOCKER IMAGES TO ECR
+  # 2. BUILD AND PUSH DOCKER IMAGES
   ###############################################################
   build_and_push:
     runs-on: ubuntu-latest
@@ -69,9 +69,28 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+
+      ##################################################################
+      # PYTEST + PYTHON SETUP for Flask Tests
+      ##################################################################
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install Flask dependencies
+        working-directory: custom-snipeit/flask
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest   # important
+      ##################################################################
+
+
       - name: Run Flask tests
         working-directory: custom-snipeit/flask
         run: pytest
+
 
       - name: Build & push Snipe-IT image
         working-directory: custom-snipeit/snipeit
@@ -90,7 +109,7 @@ jobs:
 
 
   ###############################################################
-  # 3. DEPLOY TO EC2 USING SSM
+  # 3. DEPLOY USING SSM COMMANDS
   ###############################################################
   deploy:
     runs-on: ubuntu-latest
