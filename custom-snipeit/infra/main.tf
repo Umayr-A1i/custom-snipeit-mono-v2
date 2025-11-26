@@ -89,7 +89,7 @@ resource "aws_security_group" "snipeit_sg" {
 
 resource "aws_iam_instance_profile" "snipeit_instance_profile" {
   name = "SnipeitInstanceProfile"
-  role = "SnipeitEc2Role"    # Make sure this role exists!
+  role = "SnipeitEc2Role" # Make sure this role exists!
 }
 
 
@@ -98,8 +98,8 @@ resource "aws_iam_instance_profile" "snipeit_instance_profile" {
 ############################################
 
 resource "aws_instance" "snipeit_ec2" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
 
   #subnet_id uses aws_subnets instead of deprecated aws_subnet_ids
   subnet_id = data.aws_subnets.default.ids[0]

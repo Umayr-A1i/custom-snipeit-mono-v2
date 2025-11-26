@@ -7,25 +7,23 @@ on:
 
 jobs:
 
-  ###############################################
-  # 1. TERRAFORM INFRA DEPLOYMENT
-  ###############################################
+  ###############################################################
+  # 1. TERRAFORM (BUILD INFRASTRUCTURE)
+  ###############################################################
   terraform:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-    defaults:
-      run:
-        working-directory: custom-snipeit/infra  
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Terraform                  # Requireed for terraform output
+      - name: Install Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.7.5
+          terraform_version: "1.7.5"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -34,28 +32,30 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Terraform init
-        run: terraform init -input=false
+        run: terraform -chdir=custom-snipeit/infra init -input=false
 
       - name: Terraform fmt, validate, plan
         run: |
-          terraform fmt -check
-          terraform validate
-          terraform plan -out=tfplan
+          terraform -chdir=custom-snipeit/infra fmt -check
+          terraform -chdir=custom-snipeit/infra validate
+          terraform -chdir=custom-snipeit/infra plan -out=tfplan
 
       - name: Terraform apply
         if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve tfplan
+        run: terraform -chdir=custom-snipeit/infra apply -auto-approve tfplan
 
 
-  ###############################################
-  # 2. BUILD & PUSH DOCKER IMAGES
-  ###############################################
+
+  ###############################################################
+  # 2. BUILD & PUSH DOCKER IMAGES TO ECR
+  ###############################################################
   build_and_push:
     runs-on: ubuntu-latest
     needs: terraform
     permissions:
       id-token: write
       contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,26 +88,25 @@ jobs:
           docker push ${{ secrets.ECR_URI_FLASK }}:${GITHUB_SHA}
 
 
-  ###############################################
-  # 3. DEPLOY TO EC2 VIA SSM
-  ###############################################
+
+  ###############################################################
+  # 3. DEPLOY TO EC2 USING SSM
+  ###############################################################
   deploy:
     runs-on: ubuntu-latest
     needs: build_and_push
     permissions:
       id-token: write
       contents: read
-    defaults:
-      run:
-        working-directory: custom-snipeit/infra
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Terraform                  # Needed for outputs
+      - name: Install Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.7.5
+          terraform_version: "1.7.5"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -118,13 +117,13 @@ jobs:
       - name: Get Terraform outputs
         id: tf-output
         run: |
-          terraform init -input=false
-          INSTANCE=$(terraform output -raw ec2_instance_id)
-          STATIC_IP=$(terraform output -raw static_ip)
+          terraform -chdir=custom-snipeit/infra init -input=false
+          INSTANCE=$(terraform -chdir=custom-snipeit/infra output -raw ec2_instance_id)
+          STATIC_IP=$(terraform -chdir=custom-snipeit/infra output -raw static_ip)
           echo "INSTANCE_ID=$INSTANCE" >> $GITHUB_OUTPUT
           echo "STATIC_IP=$STATIC_IP" >> $GITHUB_OUTPUT
 
-      - name: Send SSM command to deploy containers
+      - name: Deploy containers via SSM
         run: |
           aws ssm send-command \
             --instance-ids ${{ steps.tf-output.outputs.INSTANCE_ID }} \
@@ -136,3 +135,4 @@ jobs:
               \"docker compose pull\",
               \"docker compose up -d\"
             ]"
+
