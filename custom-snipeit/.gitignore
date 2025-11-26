@@ -1,7 +1,11 @@
 # Ignore all environment files by default
 .env
-*.env
-*.env.*
+.env.*
+
+# Commit *example* envs so others can see the shape.
+!*.env.snipeit.example
+!*.env.flask.example
+
 
 # Allow only the EXAMPLE files
 !.env.snipeit.example

@@ -15,7 +15,7 @@ data "aws_subnets" "default" {
   }
 }
 
-# Reliable, region-compatible Ubuntu 22.04 AMI lookup
+# Ubuntu 22.04 AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -38,7 +38,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_security_group" "snipeit_sg" {
   name        = "snipeit-ec2-sg"
-  description = "Allow HTTP/HTTPS"
+  description = "Allow HTTP/HTTPS + SSH"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -57,6 +57,14 @@ resource "aws_security_group" "snipeit_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # tighten later to your IP
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -70,7 +78,19 @@ resource "aws_security_group" "snipeit_sg" {
 }
 
 ########################################
-# IAM ROLE FOR EC2 (SSM + ECR PULL)
+# SSH KEY PAIR
+########################################
+
+resource "aws_key_pair" "snipeit_key" {
+  # Name as it appears in the AWS console
+  key_name   = "umayr-dev-key"
+
+  # Public key file you have in infra/
+  public_key = file("${path.module}/umayr-dev-key.pub")
+}
+
+########################################
+# IAM ROLE + INSTANCE PROFILE
 ########################################
 
 resource "aws_iam_role" "snipeit_ec2_role" {
@@ -91,12 +111,11 @@ resource "aws_iam_role" "snipeit_ec2_role" {
     ignore_changes = [
       description,
       tags,
-      assume_role_policy
+      assume_role_policy,
     ]
   }
 }
 
-# Attach AWS managed policies for SSM and ECR pull
 resource "aws_iam_role_policy_attachment" "ssm_managed" {
   role       = aws_iam_role.snipeit_ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -107,7 +126,6 @@ resource "aws_iam_role_policy_attachment" "ecr_read" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# Instance profile for EC2
 resource "aws_iam_instance_profile" "snipeit_instance_profile" {
   name = "SnipeitInstanceProfile"
   role = aws_iam_role.snipeit_ec2_role.name
@@ -122,7 +140,8 @@ resource "aws_iam_instance_profile" "snipeit_instance_profile" {
 ########################################
 
 resource "aws_ecr_repository" "snipeit" {
-  name = "snipeit"
+  name         = "snipeit"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -134,7 +153,8 @@ resource "aws_ecr_repository" "snipeit" {
 }
 
 resource "aws_ecr_repository" "flask_middleware" {
-  name = "flask-middleware"
+  name         = "flask-middleware"
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -146,15 +166,11 @@ resource "aws_ecr_repository" "flask_middleware" {
 }
 
 ########################################
-# STATIC IP (EIP)
+# ELASTIC IP
 ########################################
 
 resource "aws_eip" "snipeit_eip" {
   domain = "vpc"
-  
-  lifecycle {
-    prevent_destroy = true
-  }
 
   tags = {
     Name = "snipeit-static-ip"
@@ -173,11 +189,12 @@ resource "aws_instance" "snipeit_ec2" {
 
   iam_instance_profile = aws_iam_instance_profile.snipeit_instance_profile.name
 
+  # This ties the EC2 to your existing AWS key pair and local .pem
+  key_name = aws_key_pair.snipeit_key.key_name
+
   user_data = file("${path.module}/user_data.sh")
 
-  ########################################
-  # ROOT VOLUME — 20 GiB
-  ########################################
+  # Ensure enough disk for Snipe-IT + MySQL
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
@@ -191,10 +208,10 @@ resource "aws_instance" "snipeit_ec2" {
 }
 
 ########################################
-# EIP ASSOCIATION
+# ASSOCIATE STATIC IP
 ########################################
 
 resource "aws_eip_association" "snipeit_association" {
-  allocation_id = aws_eip.snipeit_eip.allocation_id
+  allocation_id = aws_eip.snipeit_eip.id
   instance_id   = aws_instance.snipeit_ec2.id
 }

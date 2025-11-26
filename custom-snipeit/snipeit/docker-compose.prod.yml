@@ -1,8 +1,13 @@
+# I keep this file as the single source of truth for how the Snipe-IT stack runs on the EC2 host.
+
 services:
   db:
     image: mysql:5.7
     container_name: snipeit-db
     restart: unless-stopped
+    # I load DB config from the same env file Snipe-IT uses.
+    env_file:
+      - .env.snipeit
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
       MYSQL_USER: ${DB_USERNAME}
@@ -12,7 +17,8 @@ services:
       - snipeit-db-data:/var/lib/mysql
 
   snipeit:
-    image: 448049798930.dkr.ecr.eu-west-2.amazonaws.com/snipeit:v8.3.6
+    # I always deploy the "latest" tag that my CI pipeline pushes.
+    image: 448049798930.dkr.ecr.eu-west-2.amazonaws.com/snipeit:latest
     container_name: snipeit-app
     restart: unless-stopped
     depends_on:
@@ -23,7 +29,8 @@ services:
       - "80:80"
 
   flask:
-    image: 448049798930.dkr.ecr.eu-west-2.amazonaws.com/flask-middleware:v8.3.6
+    # I also deploy the "latest" flask-middleware image from ECR.
+    image: 448049798930.dkr.ecr.eu-west-2.amazonaws.com/flask-middleware:latest
     container_name: snipeit-flask
     restart: unless-stopped
     env_file:
