@@ -2,12 +2,10 @@
 # DATA SOURCES
 ########################################
 
-# Default VPC
 data "aws_vpc" "default" {
   default = true
 }
 
-# All subnets in the default VPC
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -15,7 +13,6 @@ data "aws_subnets" "default" {
   }
 }
 
-# Ubuntu 22.04 AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -29,7 +26,7 @@ data "aws_ami" "ubuntu" {
     values = ["hvm"]
   }
 
-  owners = ["099720109477"] # Canonical
+  owners = ["099720109477"]
 }
 
 ########################################
@@ -37,7 +34,7 @@ data "aws_ami" "ubuntu" {
 ########################################
 
 resource "aws_security_group" "snipeit_sg" {
-  name        = "snipeit-ec2-sg"
+  name        = "snipeit-ec2-sg-v2"   ### CHANGED FOR V2
   description = "Allow HTTP/HTTPS + SSH"
   vpc_id      = data.aws_vpc.default.id
 
@@ -62,7 +59,7 @@ resource "aws_security_group" "snipeit_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # tighten later to your IP
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -73,20 +70,17 @@ resource "aws_security_group" "snipeit_sg" {
   }
 
   tags = {
-    Name = "snipeit-sg"
+    Name = "snipeit-sg-v2"   ### CHANGED FOR V2
   }
 }
 
 ########################################
-# SSH KEY PAIR
+# SSH KEY PAIR (NEW FOR V2)
 ########################################
 
 resource "aws_key_pair" "snipeit_key" {
-  # Name as it appears in the AWS console
-  key_name   = "umayr-dev-key"
-
-  # Public key file you have in infra/
-  public_key = file("${path.module}/umayr-dev-key.pub")
+  key_name   = "umayr-dev-key-v2"   ### CHANGED FOR V2 (new key)
+  public_key = file("${path.module}/umayr-dev-key-v2.pub")   ### CHANGED FOR V2
 }
 
 ########################################
@@ -94,7 +88,7 @@ resource "aws_key_pair" "snipeit_key" {
 ########################################
 
 resource "aws_iam_role" "snipeit_ec2_role" {
-  name = "SnipeitEc2Role"
+  name = "SnipeitEc2Role-v2"   ### CHANGED FOR V2
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -106,14 +100,6 @@ resource "aws_iam_role" "snipeit_ec2_role" {
       }
     }]
   })
-
-  lifecycle {
-    ignore_changes = [
-      description,
-      tags,
-      assume_role_policy,
-    ]
-  }
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_managed" {
@@ -127,20 +113,16 @@ resource "aws_iam_role_policy_attachment" "ecr_read" {
 }
 
 resource "aws_iam_instance_profile" "snipeit_instance_profile" {
-  name = "SnipeitInstanceProfile"
+  name = "SnipeitInstanceProfile-v2"   ### CHANGED FOR V2
   role = aws_iam_role.snipeit_ec2_role.name
-
-  lifecycle {
-    ignore_changes = [role]
-  }
 }
 
 ########################################
-# ECR REPOSITORIES
+# ECR (new repos for v2)
 ########################################
 
 resource "aws_ecr_repository" "snipeit" {
-  name         = "snipeit"
+  name         = "snipeit-v2"   ### CHANGED FOR V2
   force_delete = true
 
   image_scanning_configuration {
@@ -148,12 +130,12 @@ resource "aws_ecr_repository" "snipeit" {
   }
 
   tags = {
-    Name = "snipeit"
+    Name = "snipeit-v2"   ### CHANGED FOR V2
   }
 }
 
 resource "aws_ecr_repository" "flask_middleware" {
-  name         = "flask-middleware"
+  name         = "flask-middleware-v2"   ### CHANGED FOR V2
   force_delete = true
 
   image_scanning_configuration {
@@ -161,7 +143,7 @@ resource "aws_ecr_repository" "flask_middleware" {
   }
 
   tags = {
-    Name = "flask-middleware"
+    Name = "flask-middleware-v2"  ### CHANGED FOR V2
   }
 }
 
@@ -173,7 +155,7 @@ resource "aws_eip" "snipeit_eip" {
   domain = "vpc"
 
   tags = {
-    Name = "snipeit-static-ip"
+    Name = "snipeit-static-ip-v2"   ### CHANGED FOR V2
   }
 }
 
@@ -189,21 +171,19 @@ resource "aws_instance" "snipeit_ec2" {
 
   iam_instance_profile = aws_iam_instance_profile.snipeit_instance_profile.name
 
-  # This ties the EC2 to your existing AWS key pair and local .pem
-  key_name = aws_key_pair.snipeit_key.key_name
+  key_name = aws_key_pair.snipeit_key.key_name   ### CHANGED FOR V2
 
   user_data = file("${path.module}/user_data.sh")
 
-  # Ensure enough disk for Snipe-IT + MySQL
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
   }
 
   tags = {
-    Name        = "snipeit-host"
-    Environment = "prod"
-    SSMTarget   = "snipeit"
+    Name        = "snipeit-host-v2"   ### CHANGED FOR V2
+    Environment = "prod-v2"           ### CHANGED FOR V2
+    SSMTarget   = "snipeit-v2"        ### CHANGED FOR V2
   }
 }
 
