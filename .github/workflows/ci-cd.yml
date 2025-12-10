@@ -72,7 +72,7 @@ jobs:
       # custom-snipeit/custom-snipeit/snipeit/Dockerfile
       # -------------------------------------------------------
       - name: Build & Push Snipe-IT V2 Image
-        working-directory: custom-snipeit/custom-snipeit/snipeit
+        working-directory: custom-snipeit-mono-v2/custom-snipeit/snipeit
         run: |
           docker build -t snipeit-v2:latest .
           docker tag snipeit-v2:latest ${{ secrets.ECR_URI_SNIPEIT }}:latest
@@ -83,7 +83,7 @@ jobs:
       # Path also updated to correct V2 location
       # -------------------------------------------------------
       - name: Build & Push Flask Middleware V2 Image
-        working-directory: custom-snipeit/custom-snipeit/flask
+        working-directory: custom-snipeit-mono-v2/custom-snipeit/flask
         run: |
           docker build -t flask-middleware-v2:latest .
           docker tag flask-middleware-v2:latest ${{ secrets.ECR_URI_FLASK }}:latest
