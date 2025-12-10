@@ -7,7 +7,7 @@ on:
 
 jobs:
   ###############################################
-  # JOB 1: TERRAFORM (Init → Validate → Apply)
+  # JOB 1 — TERRAFORM: Build AWS Infrastructure
   ###############################################
   terraform:
     runs-on: ubuntu-latest
@@ -44,7 +44,7 @@ jobs:
         run: terraform -chdir=custom-snipeit/infra apply -auto-approve tfplan
 
   ###############################################
-  # JOB 2: BUILD & PUSH DOCKER IMAGES
+  # JOB 2 — BUILD + PUSH DOCKER IMAGES TO ECR
   ###############################################
   build_and_push:
     runs-on: ubuntu-latest
@@ -66,24 +66,31 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Snipe-IT Image
-        working-directory: custom-snipeit/snipeit
+      # -------------------------------------------------------
+      # Build Snipe-IT V2 Docker image
+      # IMPORTANT: Path updated to match your real repo:
+      # custom-snipeit/custom-snipeit/snipeit/Dockerfile
+      # -------------------------------------------------------
+      - name: Build & Push Snipe-IT V2 Image
+        working-directory: custom-snipeit/custom-snipeit/snipeit
         run: |
-          # I build from the official Snipe-IT base image and tag it as latest in my ECR repo.
-          docker build -t snipeit:v8.3.6 .
-          docker tag snipeit:v8.3.6 ${{ secrets.ECR_URI_SNIPEIT }}:latest
+          docker build -t snipeit-v2:latest .
+          docker tag snipeit-v2:latest ${{ secrets.ECR_URI_SNIPEIT }}:latest
           docker push ${{ secrets.ECR_URI_SNIPEIT }}:latest
 
-      - name: Build & Push Flask Middleware Image
-        working-directory: custom-snipeit/flask
+      # -------------------------------------------------------
+      # Build Flask Middleware V2 Docker image
+      # Path also updated to correct V2 location
+      # -------------------------------------------------------
+      - name: Build & Push Flask Middleware V2 Image
+        working-directory: custom-snipeit/custom-snipeit/flask
         run: |
-          # I build my Flask middleware and also push it as latest.
-          docker build -t flask-middleware:${GITHUB_SHA} .
-          docker tag flask-middleware:${GITHUB_SHA} ${{ secrets.ECR_URI_FLASK }}:latest
+          docker build -t flask-middleware-v2:latest .
+          docker tag flask-middleware-v2:latest ${{ secrets.ECR_URI_FLASK }}:latest
           docker push ${{ secrets.ECR_URI_FLASK }}:latest
 
   ###############################################
-  # JOB 3: DEPLOY USING SSM
+  # JOB 3 — DEPLOY VIA SSM (Bootstrapping EC2)
   ###############################################
   deploy:
     runs-on: ubuntu-latest
@@ -107,25 +114,26 @@ jobs:
           role-to-assume: arn:aws:iam::448049798930:role/GithubSnipeitDeployRole
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Get Terraform Outputs
+      - name: Get Terraform Outputs (EC2 Instance ID)
         id: tf-out
         run: |
           terraform -chdir=custom-snipeit/infra init -input=false
           INSTANCE=$(terraform -chdir=custom-snipeit/infra output -raw ec2_instance_id)
           echo "instance_id=$INSTANCE" >> $GITHUB_OUTPUT
 
+      # -------------------------------------------------------
+      # Clone V2 repo onto EC2 if not present
+      # -------------------------------------------------------
       - name: Deploy via SSM
         run: |
           aws ssm send-command \
             --instance-ids ${{ steps.tf-out.outputs.instance_id }} \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Snipe-IT Stack" \
+            --comment "Deploy Snipe-IT V2" \
             --parameters commands="[
               'cd /opt/snipeit',
-              'if [ ! -d \"custom-snipeit-mono\" ]; then git clone https://github.com/Umayr-A1i/custom-snipeit-mono.git custom-snipeit-mono; fi',
+              'if [ ! -d \"custom-snipeit-mono\" ]; then git clone https://github.com/Umayr-A1i/custom-snipeit-mono-v2.git custom-snipeit-mono; fi',
               'cd /opt/snipeit/custom-snipeit-mono && git pull',
-              'cd /opt/snipeit/custom-snipeit-mono/custom-snipeit/snipeit',
-              'aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com',
-              'docker compose pull',
-              'docker compose up -d'
+              'docker pull ${{ secrets.ECR_URI_SNIPEIT }}:latest',
+              'docker pull ${{ secrets.ECR_URI_FLASK }}:latest'
             ]"

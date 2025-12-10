@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket         = "terahost-snipeit-tfstate-umayr"
-    key            = "global/terraform.tfstate"
+    key            = "v2/terraform.tfstate"
     region         = "eu-west-2"
     dynamodb_table = "terahost-snipeit-tf-locks"
     encrypt        = true
