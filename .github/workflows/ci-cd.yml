@@ -6,9 +6,9 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  ###############################################
-  # JOB 1: TERRAFORM (Init → Validate → Apply)
-  ###############################################
+  ##############################################
+  # JOB 1 — TERRAFORM (Init → Validate → Apply)
+  ##############################################
   terraform:
     runs-on: ubuntu-latest
     permissions:
@@ -48,9 +48,9 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: terraform -chdir=custom-snipeit/infra apply -auto-approve tfplan
 
-  ###############################################
-  # JOB 2: BUILD & PUSH DOCKER IMAGES
-  ###############################################
+  ##############################################
+  # JOB 2 — BUILD & PUSH DOCKER IMAGES TO ECR
+  ##############################################
   build_and_push:
     runs-on: ubuntu-latest
     needs: terraform
@@ -71,9 +71,9 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      #############################################
-      # BUILD SNIPE-IT IMAGE (Corrected Path)
-      #############################################
+      ##############################################
+      # BUILD SNIPE-IT CONTAINER
+      ##############################################
       - name: Build & Push Snipe-IT V2 Image
         working-directory: custom-snipeit/snipeit
         run: |
@@ -81,9 +81,9 @@ jobs:
           docker tag snipeit-v2:latest ${{ secrets.ECR_URI_SNIPEIT }}:latest
           docker push ${{ secrets.ECR_URI_SNIPEIT }}:latest
 
-      #############################################
-      # BUILD FLASK IMAGE (Corrected Path)
-      #############################################
+      ##############################################
+      # BUILD FLASK MIDDLEWARE CONTAINER
+      ##############################################
       - name: Build & Push Flask Middleware V2 Image
         working-directory: custom-snipeit/flask
         run: |
@@ -91,9 +91,9 @@ jobs:
           docker tag flask-middleware-v2:latest ${{ secrets.ECR_URI_FLASK }}:latest
           docker push ${{ secrets.ECR_URI_FLASK }}:latest
 
-  ###############################################
-  # JOB 3: DEPLOY TO EC2 USING SSM
-  ###############################################
+  ##############################################
+  # JOB 3 — DEPLOY VIA AWS SSM (NO SSH)
+  ##############################################
   deploy:
     runs-on: ubuntu-latest
     needs: build_and_push
@@ -104,6 +104,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -118,6 +123,9 @@ jobs:
           INSTANCE=$(terraform -chdir=custom-snipeit/infra output -raw ec2_instance_id)
           echo "instance_id=$INSTANCE" >> $GITHUB_OUTPUT
 
+      ##############################################
+      # SSM DEPLOYMENT SCRIPT
+      ##############################################
       - name: Deploy via SSM
         run: |
           aws ssm send-command \
@@ -128,12 +136,18 @@ jobs:
               'cd /opt/snipeit',
               'if [ ! -d \"custom-snipeit-mono\" ]; then git clone https://github.com/Umayr-A1i/custom-snipeit-mono-v2.git custom-snipeit-mono; fi',
               'cd /opt/snipeit/custom-snipeit-mono && git pull',
+
+              # Pull latest images from ECR
               'docker pull ${{ secrets.ECR_URI_SNIPEIT }}:latest',
               'docker pull ${{ secrets.ECR_URI_FLASK }}:latest',
+
+              # Stop & remove existing containers safely
               'docker stop snipeit-v2 || true',
               'docker rm snipeit-v2 || true',
               'docker stop flask-v2 || true',
               'docker rm flask-v2 || true',
+
+              # Restart updated containers with .env mounted
               'docker run -d --name snipeit-v2 -p 80:80 --env-file /opt/snipeit/.env.snipeit ${{ secrets.ECR_URI_SNIPEIT }}:latest',
               'docker run -d --name flask-v2 -p 5000:5000 --env-file /opt/flask/.env.flask ${{ secrets.ECR_URI_FLASK }}:latest'
             ]"
