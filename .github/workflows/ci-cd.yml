@@ -30,6 +30,11 @@ jobs:
           role-to-assume: arn:aws:iam::448049798930:role/GithubSnipeitDeployRole
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Debug repo structure
+        run: |
+          echo "==== Repo Root Structure ===="
+          ls -R .
+
       - name: Terraform Init
         run: terraform -chdir=custom-snipeit-mono-v2/custom-snipeit/infra init -input=false
 
